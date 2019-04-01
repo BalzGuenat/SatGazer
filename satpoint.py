@@ -3,6 +3,7 @@ import requests as rq
 import json
 import numpy as np
 from numpy.linalg import norm
+from motor import Motor
 
 # The coordinates (latitude, longitude) of the satpointer
 LOCATION = 47, 8
@@ -10,6 +11,12 @@ LOCATION = 47, 8
 ALTITUDE = 400
 N2YO_API_KEY = open('api.key', 'r').readline()
 EARTH_RADIUS = 6371000
+
+HEADING_MOTOR_STEP_PIN = 1
+HEADING_MOTOR_DIR_PIN = 2
+ALTITUDE_MOTOR_STEP_PIN = 3
+ALTITUDE_MOTOR_DIR_PIN = 4
+MOTOR_STEP_SIZE = 360 / 512
 
 
 def geo_to_euclid(coords):
@@ -51,7 +58,7 @@ def ground_basis(ground):
 # time when locations were last fetched
 fetch_time = 0
 positions = []
-FUTURE_SECONDS_TO_FETCH = 20
+FUTURE_SECONDS_TO_FETCH = 120
 def current_sat_location():
     """Returns the current location of the tracked satellite as a vector."""
     global positions, fetch_time
@@ -103,16 +110,39 @@ def sat_location_from_ground(ground, sat):
     return Qi @ vec
 
 
+class SatGazer:
+    def __init__(self, hdg_stp, hdg_dir, alt_stp, alt_dir):
+        self.mot_hdg = Motor(hdg_stp, hdg_dir, MOTOR_STEP_SIZE)
+        self.mot_alt = Motor(alt_stp, alt_dir, MOTOR_STEP_SIZE)
+
+    def __str__(self):
+        return "SatGazer(H:{} A:{})".format(self.mot_hdg, self.mot_alt)
+
+    def calibrate(self):
+        self.mot_hdg.calibrate()
+        self.mot_alt.calibrate()
+
+    def pos(self, heading, altitude):
+        self.mot_hdg.pos(heading)
+        self.mot_alt.pos(altitude)
+
+
 if __name__ == "__main__":
     ground = geo_to_euclid((LOCATION[0], LOCATION[1], EARTH_RADIUS + ALTITUDE))
+    gazer = SatGazer(HEADING_MOTOR_STEP_PIN, HEADING_MOTOR_DIR_PIN,
+                     ALTITUDE_MOTOR_STEP_PIN, ALTITUDE_MOTOR_DIR_PIN)
     while True:
         sat = current_sat_location()
         sat_vec = geo_to_euclid(sat)
         sat_ground = sat_location_from_ground(ground, sat_vec)
         lat, long, dist = euclid_to_geo(sat_ground)
-        # we want to measure the angle from north-heading but have the angle from east-heading.
+        # we want the angle from north-heading but have the angle from east-heading.
         heading = (-long + 90) % 360
         print("Pitch: {:3.0f}°, Heading: {:3.0f}°, Dist: {:5.2f}km".format(lat, heading, dist / 1000))
         # print("Lat: {}, Long: {}, Dist: {}".format(lat, long, dist))
-        time.sleep(1)
+        # we want the angle from "up" but have the angle from horizon.
+        lat = 90 - lat
+        gazer.pos(heading, lat)
+        print(gazer)
+        time.sleep(5)
 
