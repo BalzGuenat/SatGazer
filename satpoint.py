@@ -9,6 +9,8 @@ from motor import Motor
 LOCATION = 47, 8
 # Altitude above sea level, in meters
 ALTITUDE = 400
+# the sattelite ID
+SAT_ID = 25544
 N2YO_API_KEY = open('api.key', 'r').readline()
 EARTH_RADIUS = 6371000
 
@@ -91,10 +93,9 @@ def update_positions():
 
 
 def fetch_sat_loc():
-    satid = 25544
     seconds = FUTURE_SECONDS_TO_FETCH
     url = 'https://www.n2yo.com/rest/v1/satellite/positions/{}/{}/{}/{}/{}/&apiKey={}'\
-        .format(satid, LOCATION[0], LOCATION[1], ALTITUDE, seconds, N2YO_API_KEY)
+        .format(SAT_ID, LOCATION[0], LOCATION[1], ALTITUDE, seconds, N2YO_API_KEY)
     rsp = rq.get(url)
     return rsp
 
