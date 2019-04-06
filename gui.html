@@ -17,5 +17,14 @@
 </form>
 <input type="button" value="calibrate" onclick="return calibrate()">
 <input type="button" value="coast" onclick="return coast()">
+<form id="driver_form" onsubmit="return handle_driver_form()">
+    <div>
+        Heading <input id="heading" type="text" name="heading" value="0">
+    </div>
+    <div>
+        Altitude <input id="altitude" type="text" name="altitude" value="0">
+    </div>
+    <input type="submit" value="submit">
+</form>
 </body>
 </html>

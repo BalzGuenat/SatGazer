@@ -15,10 +15,11 @@ SAT_ID = 25544
 landing = open("gui.html", "rb").read()
 js = open("js.js", "rb").read()
 
-pattern = re.compile("/track/(.+?)/(.+?)/(.+)")
+pattern_track = re.compile("/track/(.+?)/(.+?)/(.+)")
+pattern_driver = re.compile("/driver/(.+?)/(.+)")
 
 
-def create_request_handler_class(gazer: SatGazer):
+def create_request_handler_class(gazer: SatGazer, driver: SatGazerDriver):
     class RequestHandler(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
             print(self.path)
@@ -41,8 +42,20 @@ def create_request_handler_class(gazer: SatGazer):
                 gazer.coast()
                 self.send_response(200)
                 self.end_headers()
+            elif self.path.startswith('/driver/'):
+                m = pattern_driver.match(self.path)
+                if m:
+                    hdg = int(m.group(1))
+                    alt = int(m.group(2))
+                    gazer.stop_tracking()
+                    driver.pos(hdg, alt)
+                    self.send_response(200)
+                    self.end_headers()
+                else:
+                    self.send_response(404)
+                    self.end_headers()
             elif self.path.startswith('/track/'):
-                m = pattern.match(self.path)
+                m = pattern_track.match(self.path)
                 if m:
                     lat = int(m.group(1))
                     long = int(m.group(2))
@@ -59,8 +72,8 @@ def create_request_handler_class(gazer: SatGazer):
     return RequestHandler
 
 
-def start_server(callback):
-    srv = http.server.HTTPServer(('0.0.0.0', PORT), create_request_handler_class(callback))
+def start_server(gazer: SatGazer, driver: SatGazerDriver):
+    srv = http.server.HTTPServer(('0.0.0.0', PORT), create_request_handler_class(gazer, driver))
     srv.serve_forever()
 
 
@@ -69,15 +82,15 @@ if __name__ == "__main__":
     mot_hdg = UnipolarMotor(10, 11, 12, 13, 5.625/32)
     mot_hdg.name = 'HdgMot'
     mot_alt.name = 'AltMot'
-    hw = SatGazerDriver(mot_hdg, mot_alt)
-    gazer = SatGazer(hw)
+    driver = SatGazerDriver(mot_hdg, mot_alt)
+    gazer = SatGazer(driver)
     gazer.location = LOCATION
     gazer.target = SAT_ID
     gazer.start_tracking()
 
     # def cb(lat, long, sat_id): print('lat={}, long={}, sat_id={}'.format(lat, long, sat_id))
     try:
-        start_server(gazer)
+        start_server(gazer, driver)
     except KeyboardInterrupt as i:
         gazer.stop_tracking()
         raise i

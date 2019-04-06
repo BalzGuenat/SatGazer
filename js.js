@@ -28,3 +28,12 @@ function coast() {
     get('/coast')
     return false
 }
+
+function handle_driver_form() {
+    const hdg = document.getElementById('heading').value;
+    const alt = document.getElementById('altitude').value;
+
+    const pathname = "/driver/" + hdg + "/" + alt
+    get(pathname)
+    return false
+}
