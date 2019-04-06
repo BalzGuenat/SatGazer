@@ -3,7 +3,8 @@ import requests as rq
 import json
 import numpy as np
 from numpy.linalg import norm
-from motor import Motor
+from motor import Motor, UnipolarMotor
+import threading
 
 # The coordinates (latitude, longitude) of the satpointer
 LOCATION = 47, 8
@@ -61,7 +62,9 @@ def ground_basis(ground):
 fetch_time = 0
 positions = []
 FUTURE_SECONDS_TO_FETCH = 120
-def current_sat_location():
+
+
+def current_sat_location(sat_id):
     """Returns the current location of the tracked satellite as a vector."""
     global positions, fetch_time
     # millis = int(round(time.time() * 1000))
@@ -71,7 +74,7 @@ def current_sat_location():
     now = int(time.time())
     pos_idx = now - fetch_time
     if len(positions) <= pos_idx:
-        update_positions()
+        update_positions(sat_id)
         pos_idx = int(time.time()) - fetch_time
     lat = positions[pos_idx]['satlatitude']
     long = positions[pos_idx]['satlongitude']
@@ -82,20 +85,20 @@ def current_sat_location():
     return lat, long, rad
 
 
-def update_positions():
+def update_positions(sat_id):
     global positions
     global fetch_time
-    rsp = fetch_sat_loc()
+    rsp = fetch_sat_loc(sat_id)
     data = json.loads(rsp.text)
     positions = data['positions']
     fetch_time = int(time.time())
     print('updated positions')
 
 
-def fetch_sat_loc():
+def fetch_sat_loc(sat_id):
     seconds = FUTURE_SECONDS_TO_FETCH
     url = 'https://www.n2yo.com/rest/v1/satellite/positions/{}/{}/{}/{}/{}/&apiKey={}'\
-        .format(SAT_ID, LOCATION[0], LOCATION[1], ALTITUDE, seconds, N2YO_API_KEY)
+        .format(sat_id, LOCATION[0], LOCATION[1], ALTITUDE, seconds, N2YO_API_KEY)
     rsp = rq.get(url)
     return rsp
 
@@ -111,31 +114,103 @@ def sat_location_from_ground(ground, sat):
     return Qi @ vec
 
 
-class SatGazer:
-    def __init__(self, hdg_stp, hdg_dir, alt_stp, alt_dir):
-        self.mot_hdg = Motor(hdg_stp, hdg_dir, MOTOR_STEP_SIZE)
-        self.mot_alt = Motor(alt_stp, alt_dir, MOTOR_STEP_SIZE)
+class SatGazerDriver:
+    """
+    SatGazer hardware driver
+    """
+    def __init__(self, mot_hdg: Motor, mot_alt: Motor):
+        """
+        Creates a new SatGazer hardware driver
+        :param mot_hdg: the motor controlling the heading
+        :param mot_alt: the motor controlling the altitude
+        """
+        self.mot_hdg = mot_hdg
+        self.mot_alt = mot_alt
+        self.hdg = 0
+        self.alt = 0
 
     def __str__(self):
         return "SatGazer(H:{} A:{})".format(self.mot_hdg, self.mot_alt)
 
     def calibrate(self):
-        self.mot_hdg.calibrate()
-        self.mot_alt.calibrate()
+        """
+        Tell the SatGazer that is is aligned to the zero position,
+        i.e. heading north and pointing straight towards the sky.
+        """
+        self.hdg = 0
+        self.alt = 0
 
     def pos(self, heading, altitude):
-        self.mot_hdg.pos(heading)
-        self.mot_alt.pos(altitude)
+        """
+        Moves the SatGazer to align with the specified angles
+        :param heading: the heading in degrees, where 0 is north and 90 is east.
+        :param altitude: the altitude/pitch in degrees where 0 is up and 90 is level.
+        """
+        diff = (heading - self.hdg) % 360
+
+        # If we need to turn more than 90 degrees, it's faster to flip the altitude instead
+        if 90 < diff < 270:
+            print("flipping alt")
+            diff = (diff + 180) % 360
+            altitude = (-altitude) % 360
+        # move from range [0,360] to [-180,180]
+        if diff > 180:
+            diff = diff - 360
+
+        adiff = (altitude - self.alt) % 360
+        # move from range [0,360] to [-180,180]
+        if adiff > 180:
+            adiff = adiff - 360
+
+        # turn both motors in parallel
+        # diff gets multiplied by 4 because the device has a 4x reduction on the heading.
+        t = threading.Thread(target=lambda: self.mot_hdg.degrees(diff * 4))
+        t.start()
+        self.mot_alt.degrees(adiff)
+        t.join()
+        self.hdg = heading
+        self.alt = altitude
 
 
-if __name__ == "__main__":
-    ground = geo_to_euclid((LOCATION[0], LOCATION[1], EARTH_RADIUS + ALTITUDE))
-    gazer = SatGazer(HEADING_MOTOR_STEP_PIN, HEADING_MOTOR_DIR_PIN,
-                     ALTITUDE_MOTOR_STEP_PIN, ALTITUDE_MOTOR_DIR_PIN)
-    while True:
-        sat = current_sat_location()
+class SatGazer:
+    def __init__(self, hardware: SatGazerDriver):
+        self.hw = hardware
+        # the location as latitude and longitude
+        self.loc = 0, 0
+        # the location as a vector. always computed from self.loc but cached because it rarely changes
+        self.ground = geo_to_euclid((self.loc[0], self.loc[1], EARTH_RADIUS + ALTITUDE))
+        self.target = None
+        self.tracking_thread = None
+
+    @property
+    def location(self):
+        return self.loc
+
+    @location.setter
+    def location(self, loc):
+        self.loc = loc
+        self.ground = geo_to_euclid((self.loc[0], self.loc[1], EARTH_RADIUS + ALTITUDE))
+
+    def start_tracking(self):
+        if not self.is_tracking():
+            self.tracking_thread = Tracker(self)
+            self.tracking_thread.start()
+
+    def stop_tracking(self):
+        if self.is_tracking():
+            self.tracking_thread.stop()
+            self.tracking_thread.join()
+
+    def is_tracking(self):
+        return self.tracking_thread and self.tracking_thread.is_alive()
+
+    def align(self) -> None:
+        """
+        Aligns to the target.
+        """
+        sat = current_sat_location(self.target)
         sat_vec = geo_to_euclid(sat)
-        sat_ground = sat_location_from_ground(ground, sat_vec)
+        sat_ground = sat_location_from_ground(self.ground, sat_vec)
         lat, long, dist = euclid_to_geo(sat_ground)
         # we want the angle from north-heading but have the angle from east-heading.
         heading = (-long + 90) % 360
@@ -143,7 +218,29 @@ if __name__ == "__main__":
         # print("Lat: {}, Long: {}, Dist: {}".format(lat, long, dist))
         # we want the angle from "up" but have the angle from horizon.
         lat = 90 - lat
-        gazer.pos(heading, lat)
-        print(gazer)
-        time.sleep(5)
+        self.hw.pos(heading, lat)
 
+
+class Tracker(threading.Thread):
+    def __init__(self, gazer: SatGazer):
+        super().__init__()
+        self.gazer = gazer
+        self.stop = threading.Event()
+
+    def run(self) -> None:
+        while not self.stop.is_set():
+            self.gazer.align()
+            time.sleep(5)
+
+    def stop(self):
+        self.stop.set()
+
+
+if __name__ == "__main__":
+    mot_hdg = UnipolarMotor(18, 17, 22, 23, 5.625/32)
+    mot_alt = UnipolarMotor(10, 11, 12, 13, 5.625/32)
+    hw = SatGazerDriver(mot_hdg, mot_alt)
+    gazer = SatGazer(hw)
+    gazer.location = LOCATION
+    gazer.target = SAT_ID
+    gazer.start_tracking()
