@@ -76,9 +76,11 @@ class UnipolarMotor(Motor):
         self.b1 = gz.DigitalOutputDevice(b1)
         self.phases = [[self.a0], [self.a1], [self.b0], [self.b1]]
         self.phase_idx = 0
+        """Can be freely chosen to simplify debugging."""
+        self.name = "UnipolarMotor({},{},{},{})".format(self.a0.pin, self.a1.pin, self.b0.pin, self.b1.pin)
 
     def __str__(self):
-        return "UnipolarMotor({},{},{},{})".format(self.a0.pin, self.a1.pin, self.b0.pin, self.b1.pin)
+        return self.name
 
     def step(self, n=1, step_time=STEP_TIME):
         if n < 0:

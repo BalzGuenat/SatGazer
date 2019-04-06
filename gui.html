@@ -5,15 +5,17 @@
 <body>
 <form id="theform" onsubmit="return handleForm()">
     <div>
-        Latitude <input id="latitude" type="text" name="latitude">
+        Latitude <input id="latitude" type="text" name="latitude" value="47">
     </div>
     <div>
-        Longitude <input id="longitude" type="text" name="longitude">
+        Longitude <input id="longitude" type="text" name="longitude" value="8">
     </div>
     <div>
-        Satellite ID <input id="sat_id" type="text" name="sat_id">
+        Satellite ID <input id="sat_id" type="text" name="sat_id" value="25544">
     </div>
     <input type="submit" value="submit">
 </form>
+<input type="button" value="calibrate" onclick="return calibrate()">
+<input type="button" value="coast" onclick="return coast()">
 </body>
 </html>

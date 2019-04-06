@@ -140,46 +140,51 @@ class SatGazerDriver:
         self.hdg = 0
         self.alt = 0
 
+    def coast(self):
+        self.mot_hdg.coast()
+        self.mot_alt.coast()
+
     def pos(self, heading, altitude):
         """
         Moves the SatGazer to align with the specified angles
         :param heading: the heading in degrees, where 0 is north and 90 is east.
         :param altitude: the altitude/pitch in degrees where 0 is up and 90 is level.
         """
-        diff = (heading - self.hdg) % 360
+        d_hdg = (heading - self.hdg) % 360
 
-        # If we need to turn more than 90 degrees, it's faster to flip the altitude instead
-        if 90 < diff < 270:
-            print("flipping alt")
-            diff = (diff + 180) % 360
+        # Instead of adjusting the heading more than 90 degrees, we just point backwards.
+        # this is faster because of the gear reduction on the heading.
+        if 90 < d_hdg < 270:
+            print("pointing backwards")
+            d_hdg = (d_hdg + 180) % 360
             altitude = (-altitude) % 360
         # move from range [0,360] to [-180,180]
-        if diff > 180:
-            diff = diff - 360
+        if d_hdg > 180:
+            d_hdg = d_hdg - 360
 
-        adiff = (altitude - self.alt) % 360
+        d_alt = (altitude - self.alt) % 360
         # move from range [0,360] to [-180,180]
-        if adiff > 180:
-            adiff = adiff - 360
+        if d_alt > 180:
+            d_alt = d_alt - 360
 
         # turn both motors in parallel
-        # diff gets multiplied by 4 because the device has a 4x reduction on the heading.
-        t = threading.Thread(target=lambda: self.mot_hdg.degrees(diff * 4))
+        # d_hdg gets multiplied by 4 because the device has a 4x reduction on the heading.
+        t = threading.Thread(target=lambda: self.mot_hdg.degrees(d_hdg * 4))
         t.start()
-        self.mot_alt.degrees(adiff)
+        self.mot_alt.degrees(d_alt)
         t.join()
-        self.hdg = heading
-        self.alt = altitude
+        self.hdg = self.hdg + d_hdg
+        self.alt = self.alt + d_alt
 
 
 class SatGazer:
-    def __init__(self, hardware: SatGazerDriver):
-        self.hw = hardware
+    def __init__(self, driver: SatGazerDriver):
+        self.driver = driver
         # the location as latitude and longitude
         self.loc = 0, 0
         # the location as a vector. always computed from self.loc but cached because it rarely changes
         self.ground = geo_to_euclid((self.loc[0], self.loc[1], EARTH_RADIUS + ALTITUDE))
-        self.target = None
+        self._target = None
         self.tracking_thread = None
 
     @property
@@ -188,11 +193,34 @@ class SatGazer:
 
     @location.setter
     def location(self, loc):
+        global fetch_time
+        assert -90 <= loc[0] <= 90
+        loc = loc[0], loc[1] % 360
+        print('New location: {}'.format(loc))
         self.loc = loc
         self.ground = geo_to_euclid((self.loc[0], self.loc[1], EARTH_RADIUS + ALTITUDE))
+        # this forces a refetch the next time align is called
+        fetch_time = 0
+        if self.is_tracking():
+            self.tracking_thread.align_now()
+
+    @property
+    def target(self):
+        return self._target
+
+    @target.setter
+    def target(self, target):
+        global fetch_time
+        if target != self._target:
+            print('New target: {}'.format(target))
+            self._target = target
+            # this forces a refetch the next time align is called
+            fetch_time = 0
 
     def start_tracking(self):
-        if not self.is_tracking():
+        if self.is_tracking():
+            self.tracking_thread.align_now()
+        else:
             self.tracking_thread = Tracker(self)
             self.tracking_thread.start()
 
@@ -209,6 +237,7 @@ class SatGazer:
         Aligns to the target.
         """
         sat = current_sat_location(self.target)
+        # sat = 45, 0, EARTH_RADIUS + 1000000
         sat_vec = geo_to_euclid(sat)
         sat_ground = sat_location_from_ground(self.ground, sat_vec)
         lat, long, dist = euclid_to_geo(sat_ground)
@@ -218,22 +247,44 @@ class SatGazer:
         # print("Lat: {}, Long: {}, Dist: {}".format(lat, long, dist))
         # we want the angle from "up" but have the angle from horizon.
         lat = 90 - lat
-        self.hw.pos(heading, lat)
+        self.driver.pos(heading, lat)
+
+    def calibrate(self) -> None:
+        print("calibrating")
+        self.driver.calibrate()
+
+    def coast(self) -> None:
+        print("coasting")
+        self.driver.coast()
 
 
 class Tracker(threading.Thread):
     def __init__(self, gazer: SatGazer):
         super().__init__()
         self.gazer = gazer
-        self.stop = threading.Event()
+        self._stop_event = threading.Event()
+        self._stop_condition = threading.Condition()
 
     def run(self) -> None:
-        while not self.stop.is_set():
+        self._stop_condition.acquire()
+        while not self._stop_event.is_set():
             self.gazer.align()
-            time.sleep(5)
+            self._stop_condition.wait(5)
+        self._stop_condition.release()
 
     def stop(self):
-        self.stop.set()
+        self._stop_event.set()
+        self._stop_condition.acquire()
+        self._stop_condition.notify()
+        self._stop_condition.release()
+
+    def align_now(self):
+        """
+        Calls align immediately and resets the update period.
+        """
+        self._stop_condition.acquire()
+        self._stop_condition.notify()
+        self._stop_condition.release()
 
 
 if __name__ == "__main__":
