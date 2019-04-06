@@ -60,14 +60,14 @@ def create_request_handler_class(gazer: SatGazer):
 
 
 def start_server(callback):
-    srv = http.server.HTTPServer(('localhost', PORT), create_request_handler_class(callback))
+    srv = http.server.HTTPServer(('0.0.0.0', PORT), create_request_handler_class(callback))
     srv.serve_forever()
 
 
 if __name__ == "__main__":
-    mot_hdg = UnipolarMotor(18, 17, 22, 23, 5.625/32)
+    mot_alt = UnipolarMotor(18, 17, 22, 23, 5.625/32)
+    mot_hdg = UnipolarMotor(10, 11, 12, 13, 5.625/32)
     mot_hdg.name = 'HdgMot'
-    mot_alt = UnipolarMotor(10, 11, 12, 13, 5.625/32)
     mot_alt.name = 'AltMot'
     hw = SatGazerDriver(mot_hdg, mot_alt)
     gazer = SatGazer(hw)

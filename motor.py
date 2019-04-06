@@ -6,7 +6,7 @@ import abc
 # the time to wait between steps
 STEP_TIME = .002
 
-gz.Device.pin_factory = MockFactory()
+# gz.Device.pin_factory = MockFactory()
 
 
 class Motor:

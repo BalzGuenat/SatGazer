@@ -169,9 +169,10 @@ class SatGazerDriver:
 
         # turn both motors in parallel
         # d_hdg gets multiplied by 4 because the device has a 4x reduction on the heading.
-        t = threading.Thread(target=lambda: self.mot_hdg.degrees(d_hdg * 4))
+        t = threading.Thread(target=lambda: (self.mot_hdg.degrees(d_hdg * 4), self.mot_hdg.coast()))
         t.start()
         self.mot_alt.degrees(d_alt)
+        self.mot_alt.coast()
         t.join()
         self.hdg = self.hdg + d_hdg
         self.alt = self.alt + d_alt
@@ -244,7 +245,7 @@ class SatGazer:
         # we want the angle from north-heading but have the angle from east-heading.
         heading = (-long + 90) % 360
         print("Pitch: {:3.0f}°, Heading: {:3.0f}°, Dist: {:5.2f}km".format(lat, heading, dist / 1000))
-        # print("Lat: {}, Long: {}, Dist: {}".format(lat, long, dist))
+        print("Sat: Lat: {}, Long: {}, Rad: {}".format(sat[0], sat[1], sat[2]))
         # we want the angle from "up" but have the angle from horizon.
         lat = 90 - lat
         self.driver.pos(heading, lat)
