@@ -81,7 +81,7 @@ def start_server(gazer: SatGazer, driver: SatGazerDriver):
 
 if __name__ == "__main__":
     mot_hdg = UnipolarMotor(19, 13, 6, 5, 5.625/32)
-    mot_alt = UnipolarMotor(22, 27, 17, 18, 5.625/32)
+    mot_alt = UnipolarMotor(22, 27, 17, 18, 5.625/32, reverse=True)
     mot_hdg.name = 'HdgMot'
     mot_alt.name = 'AltMot'
     driver = SatGazerDriver(mot_hdg, mot_alt)
