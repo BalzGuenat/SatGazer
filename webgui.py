@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+
 import http.server
 import re
 from satpoint import SatGazer, SatGazerDriver
@@ -78,8 +80,8 @@ def start_server(gazer: SatGazer, driver: SatGazerDriver):
 
 
 if __name__ == "__main__":
-    mot_alt = UnipolarMotor(18, 17, 22, 23, 5.625/32)
-    mot_hdg = UnipolarMotor(10, 11, 12, 13, 5.625/32)
+    mot_hdg = UnipolarMotor(19, 13, 6, 5, 5.625/32)
+    mot_alt = UnipolarMotor(22, 27, 17, 18, 5.625/32)
     mot_hdg.name = 'HdgMot'
     mot_alt.name = 'AltMot'
     driver = SatGazerDriver(mot_hdg, mot_alt)

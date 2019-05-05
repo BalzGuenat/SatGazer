@@ -19,9 +19,9 @@ class Motor:
     def __str__(self):
         return "Motor"
 
-    def degrees(self, deg):
+    def degrees(self, deg, **kwargs):
         steps = int(deg / self.step_size)
-        self.step(steps)
+        self.step(steps, STEP_TIME, **kwargs)
 
     def coast(self):
         """
@@ -82,7 +82,13 @@ class UnipolarMotor(Motor):
     def __str__(self):
         return self.name
 
-    def step(self, n=1, step_time=STEP_TIME):
+    def step(self, n=1, step_time=STEP_TIME, **kwargs):
+
+        if 'halfstep' in kwargs and kwargs['halfstep']:
+            phases = [[self.a0], [self.a0, self.a1], [self.a1], [self.a1, self.b0], [self.b0], [self.b0, self.b1], [self.b1], [self.b1, self.a0]]
+        else:
+            phases = self.phases
+
         if n < 0:
             n = -n
             reverse = True
@@ -91,10 +97,10 @@ class UnipolarMotor(Motor):
         print("{} stepping {} {}".format(self, n, "bwd" if reverse else "fwd"))
         phase_step = -1 if reverse else 1
         for i in range(n):
-            [p.off() for p in self.phases[self.phase_idx]]
-            self.phase_idx = (self.phase_idx + phase_step) % len(self.phases)
-            [p.on() for p in self.phases[self.phase_idx]]
+            [p.off() for p in phases[self.phase_idx]]
+            self.phase_idx = (self.phase_idx + phase_step) % len(phases)
+            [p.on() for p in phases[self.phase_idx]]
             sleep(step_time)
 
     def coast(self):
-        [p.off() for p in self.phases[self.phase_idx]]
+        [p.off() for p in [self.a0, self.a1, self.b0, self.b1]]

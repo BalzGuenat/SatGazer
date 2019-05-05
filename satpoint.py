@@ -270,7 +270,7 @@ class Tracker(threading.Thread):
         self._stop_condition.acquire()
         while not self._stop_event.is_set():
             self.gazer.align()
-            self._stop_condition.wait(5)
+            self._stop_condition.wait(1)
         self._stop_condition.release()
 
     def stop(self):
@@ -289,8 +289,8 @@ class Tracker(threading.Thread):
 
 
 if __name__ == "__main__":
-    mot_hdg = UnipolarMotor(18, 17, 22, 23, 5.625/32)
-    mot_alt = UnipolarMotor(10, 11, 12, 13, 5.625/32)
+    mot_hdg = UnipolarMotor(5, 6, 13, 19, 5.625/32)
+    mot_alt = UnipolarMotor(17, 18, 27, 22, 5.625/32)
     hw = SatGazerDriver(mot_hdg, mot_alt)
     gazer = SatGazer(hw)
     gazer.location = LOCATION
