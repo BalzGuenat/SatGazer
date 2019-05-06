@@ -1,8 +1,14 @@
+<!DOCTYPE html>
 <html>
 <head>
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+    <meta content="utf-8" http-equiv="encoding">
     <script src="js.js"></script>
 </head>
 <body>
+<h2>Status</h2>
+<div id="status"></div>
+<h2>Control</h2>
 <form id="theform" onsubmit="return handleForm()">
     <div>
         Latitude <input id="latitude" type="text" name="latitude" value="47">
@@ -19,12 +25,15 @@
 <input type="button" value="coast" onclick="return coast()">
 <form id="driver_form" onsubmit="return handle_driver_form()">
     <div>
-        Heading <input id="heading" type="text" name="heading" value="0">
+        Azimuth <input id="azimuth" type="text" name="azimuth" value="0">
     </div>
     <div>
-        Altitude <input id="altitude" type="text" name="altitude" value="0">
+        Zenith <input id="altitude" type="text" name="altitude" value="0">
     </div>
     <input type="submit" value="submit">
 </form>
+<script>
+    run_status();
+</script>
 </body>
 </html>

@@ -35,7 +35,7 @@ These locations are converted to vectors in an XYZ coordinate system with the Ea
 A simple vector subtraction gives the vector from the user to the satellite.
 This vector gives the direction in which the arrow of the SatGazer should point.
 This vector is now transformed to another coordinate system centered on the SatGazer device with the X axis pointing East, Y pointing North and Z pointing skywards.
-Using this transformed vector, it's easy to compute the heading (aka. azimuth) and pitch (aka. altitude, elevation) of the satellite relative to the SatGazer's location.
+Using this transformed vector, it's easy to compute the azimuth (aka. azimuth) and altitude angle (aka. elevation angle) of the satellite relative to the SatGazer's location.
 
 ### Moving Things (incomplete)
 
@@ -71,7 +71,7 @@ The device consists of the following parts.
 3D-printed parts:
 - Base plate
 - Top plate
-- Heading gear
+- Azimuth gear
 - Arrow
 
 Electronics:
@@ -110,7 +110,7 @@ This means that you can skip calibration if you start the script with the device
 
 ### Checking Motors
 
-To ensure that the stepper motors operate correctly, set both the heading and altitude to 90 using the web GUI.
+To ensure that the stepper motors operate correctly, set both the azimuth and altitude to 90 using the web GUI.
 Ensure that both axes move smoothly and that the arrow now indeed points East.
 
 If the motors don't run smoothly or at all, check that the wiring corresponds to the pin assignments for the motors.
@@ -120,7 +120,7 @@ If the arrow made a full rotation and now points up again, check that you haven'
 
 If the arrow points West instead of East, check the North indicator of the top plate.
 If the indicator points East, the altitude motor must be reversed.
-If the indicator points West, the heading motor must be reversed.
+If the indicator points West, the azimuth motor must be reversed.
 To do that, add `reversed=True` when creating the motor, e.g.
 
 ```
@@ -146,9 +146,7 @@ SatGazer was designed for tracking satellites but could in principle track any o
 Ideas:
 - Smooth tracking using variable stepping speed
 - Automatically determine location using IP
-- Show information in web GUI
-- Don't immediately start tracking upon script start
 - Autorun script at OS startup
 - Improve parsing of coordinates
-- Use azimuth and elevation instead of heading, pitch, altitude
 - Make configuration easier (config file?)
+- Prevent drift by measuring device position in steps instead of degrees
